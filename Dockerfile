@@ -1,12 +1,17 @@
-FROM docker:dind-rootless
+FROM docker:dind
 
-RUN apt update && apt install -y python3 python3-pip
+RUN apk update && \
+    apk add --no-cache python3 py3-pip
 
-WORKDIR app
+RUN python3 -m venv /opt/venv
 
-COPY requirements.txt .
-COPY main.py .
+COPY requirements.txt /app/requirements.txt
+RUN /opt/venv/bin/pip install -r /app/requirements.txt
 
-RUN pip install -r requirements.txt
+COPY main.py /app/main.py
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
 
 CMD ["python", "main.py"]
