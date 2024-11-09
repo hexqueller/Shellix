@@ -26,6 +26,10 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     bot_token = os.getenv("TOKEN")
+    if not bot_token:
+        print("Token not found")
+        exit(1)
+
     """Start the bot."""
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(bot_token).build()
