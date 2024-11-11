@@ -1,4 +1,4 @@
-FROM docker:dind
+FROM docker:27.3.1-dind
 
 RUN apk update && \
     apk add --no-cache python3 py3-pip
