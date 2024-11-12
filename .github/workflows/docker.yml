@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - '*'
   workflow_dispatch:
 
 jobs:
@@ -29,7 +31,9 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ secrets.DOCKER_USERNAME }}/shellix:latest
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/shellix:latest
+            ${{ secrets.DOCKER_USERNAME }}/shellix:${{ github.ref_name }}
 
       - name: Log out from Docker Hub
         run: docker logout
