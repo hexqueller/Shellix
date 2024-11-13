@@ -1,7 +1,12 @@
 import os
 import subprocess
+from datetime import datetime
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+
+# Проверяем и создаем папку для логов, если она не существует
+LOG_DIR = "/var/log/shellix"
+os.makedirs(LOG_DIR, exist_ok=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -32,6 +37,9 @@ async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     container_name = f"user_container_{user_id}"
     command = update.message.text  # Получаем текст команды от пользователя
 
+    # Логирование запроса
+    log_request(user_id, command)
+
     # Проверяем, существует ли контейнер
     container_exists = subprocess.call(
         ["docker", "inspect", container_name],
@@ -55,6 +63,12 @@ async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Отправляем результат в формате `bash`
     await update.message.reply_text(f"```bash\n{result}\n```", parse_mode='MarkdownV2')
+
+def log_request(user_id: int, command: str) -> None:
+    log_file = os.path.join(LOG_DIR, f"user_{user_id}.log")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(log_file, "a") as f:
+        f.write(f"[{timestamp}] {command}\n")
 
 def main() -> None:
     # Забираем из системы токен
