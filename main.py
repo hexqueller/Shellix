@@ -4,6 +4,9 @@ from datetime import datetime
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
+# Максимально допустимая длина сообщения Telegram
+MAX_MESSAGE_LENGTH = 4096
+
 # Проверяем и создаем папку для логов, если она не существует
 LOG_DIR = "/var/log/shellix"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -60,6 +63,14 @@ async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
     except subprocess.CalledProcessError as e:
         result = f"Error:\n{e.output}"
+
+    # Проверка на telegram.error.BadRequest: Text must be non-empty
+    if not result.strip():
+        result = "Пустой ответ"
+
+    # Проверка на telegram.error.BadRequest: Text is too long
+    if len(result) > MAX_MESSAGE_LENGTH:
+        result = "... Message is too long\n" + result[-(MAX_MESSAGE_LENGTH - 23):]
 
     # Отправляем результат в формате `bash`
     await update.message.reply_text(f"```bash\n{result}\n```", parse_mode='MarkdownV2')
