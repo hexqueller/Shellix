@@ -1,8 +1,8 @@
 import os
 import subprocess
 from datetime import datetime
-from telegram import ForceReply, Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram import ForceReply, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
 
 # Максимально допустимая длина сообщения Telegram
 MAX_MESSAGE_LENGTH = 4096
@@ -11,9 +11,28 @@ MAX_MESSAGE_LENGTH = 4096
 LOG_DIR = "/var/log/shellix"
 os.makedirs(LOG_DIR, exist_ok=True)
 
+DISTRIBUTIONS = {
+    "Ubuntu": "ubuntu:24.04",
+    "Arch": "archlinux:base-20241110.0.278197",
+    "Alpine": "alpine:3.20"
+}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
+    keyboard = []
+    for distro, container in DISTRIBUTIONS.items():
+        keyboard.append([InlineKeyboardButton(distro, callback_data=container)])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text("Выберите дистрибутив для создания контейнера:", reply_markup=reply_markup)
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
     container_name = f"user_container_{user_id}"
+    container_image = query.data
 
     # Проверяем, существует ли контейнер
     container_exists = subprocess.call(
@@ -26,14 +45,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Создаем контейнер, если он не существует
         try:
             subprocess.check_call(
-                ["docker", "run", "-d", "--name", container_name, "ubuntu:24.04", "sleep", "infinity"]
+                ["docker", "run", "-d", "--name", container_name, container_image, "sleep", "infinity"]
             )
-            await update.message.reply_text("Контейнер создан.\nПо окончанию работы можно использовать /destroy для его удаления!")
+            await query.edit_message_text(text=f"Контейнер {container_image} создан.\nПо окончанию работы можно использовать /destroy для его удаления!")
         except subprocess.CalledProcessError:
-            await update.message.reply_text("Не удалось создать контейнер.")
+            await query.edit_message_text(text="Не удалось создать контейнер.")
             return
     else:
-        await update.message.reply_text("Контейнер уже существует.")
+        await query.edit_message_text(text="Контейнер уже существует.")
 
 async def destroy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
@@ -80,7 +99,7 @@ async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         # Выполняем команду в контейнере
         result = subprocess.check_output(
-            ["docker", "exec", container_name, "bash", "-c", command],
+            ["docker", "exec", container_name, "sh", "-c", command],
             text=True,
             stderr=subprocess.STDOUT
         )
@@ -114,9 +133,8 @@ def main() -> None:
     application = Application.builder().token(bot_token).build()
 
     application.add_handler(CommandHandler("start", start))
-
+    application.add_handler(CallbackQueryHandler(button))
     application.add_handler(CommandHandler("destroy", destroy))
-
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, execute))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
