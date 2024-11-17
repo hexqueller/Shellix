@@ -18,9 +18,9 @@ DISTRIBUTIONS = {
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    keyboard = []
-    for distro, container in DISTRIBUTIONS.items():
-        keyboard.append([InlineKeyboardButton(distro, callback_data=container)])
+    keyboard = [
+        [InlineKeyboardButton(distro, callback_data=container) for distro, container in DISTRIBUTIONS.items()]
+    ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
