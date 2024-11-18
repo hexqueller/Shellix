@@ -1,5 +1,6 @@
 import os
 import subprocess
+import re
 from datetime import datetime
 from telegram import ForceReply, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
@@ -113,6 +114,9 @@ async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Проверка на telegram.error.BadRequest: Text is too long
     if len(result) > MAX_MESSAGE_LENGTH:
         result = "... Message is too long\n" + result[-(MAX_MESSAGE_LENGTH - 23):]
+
+    # Экранирование зарезервированных символов
+    result = re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', result)
 
     # Отправляем результат в формате `bash`
     await update.message.reply_text(f"```bash\n{result}\n```", parse_mode='MarkdownV2')
