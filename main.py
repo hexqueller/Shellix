@@ -48,7 +48,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             subprocess.check_call(
                 ["docker", "run", "-d", "--name", container_name, container_image, "sleep", "infinity"]
             )
-            await query.edit_message_text(text=f"Контейнер {container_image} создан.\nПо окончанию работы можно использовать /destroy для его удаления!")
+            await query.edit_message_text(text=f"Контейнер {container_image} создан.\nПо окончанию работы можно использовать /destroy для его удаления или /restart если он завис!")
         except subprocess.CalledProcessError:
             await query.edit_message_text(text="Не удалось создать контейнер.")
             return
@@ -75,6 +75,29 @@ async def destroy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("Контейнер удален.")
         except subprocess.CalledProcessError:
             await update.message.reply_text("Не удалось удалить контейнер.")
+    else:
+        await update.message.reply_text("Контейнер не существует.")
+
+async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    container_name = f"user_container_{user_id}"
+
+    # Проверяем, существует ли контейнер
+    container_exists = subprocess.call(
+        ["docker", "inspect", container_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    ) == 0
+
+    if container_exists:
+        # Перезапускаем контейнер
+        try:
+            subprocess.check_call(
+                ["docker", "restart", container_name]
+            )
+            await update.message.reply_text("Контейнер перезапущен!")
+        except subprocess.CalledProcessError:
+            await update.message.reply_text("Не удалось перезапустить контейнер.")
     else:
         await update.message.reply_text("Контейнер не существует.")
 
@@ -139,6 +162,7 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(CommandHandler("destroy", destroy))
+    application.add_handler(CommandHandler("restart", restart))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, execute))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
