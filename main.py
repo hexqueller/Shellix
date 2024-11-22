@@ -101,6 +101,43 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text("Контейнер не существует.")
 
+async def download(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    container_name = f"user_container_{user_id}"
+    message_text = update.message.text
+
+    # Проверяем, существует ли контейнер
+    container_exists = subprocess.call(
+        ["docker", "inspect", container_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    ) == 0
+
+    if not container_exists:
+        await update.message.reply_text("Контейнер не существует. Введите /start для его создания.")
+        return
+
+    # Проверяем, указан ли путь к файлу
+    parts = message_text.split(" ", 1)
+    if len(parts) < 2:
+        await update.message.reply_text("Укажите путь к файлу после команды /download")
+        return
+
+    file_path = parts[1]
+
+    try:
+        # Скачиваем файл из контейнера
+        file_data = subprocess.check_output(
+            ["docker", "exec", container_name, "cat", file_path],
+            text=False
+        )
+    except subprocess.CalledProcessError as e:
+        await update.message.reply_text(f"Ошибка скачивания файла: {e.output}")
+        return
+
+    # Отправляем файл в чат
+    await update.message.reply_document(document=file_data, filename=os.path.basename(file_path))
+
 async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     container_name = f"user_container_{user_id}"
@@ -163,6 +200,7 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(CommandHandler("destroy", destroy))
     application.add_handler(CommandHandler("restart", restart))
+    application.add_handler(CommandHandler("download", download))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, execute))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
