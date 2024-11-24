@@ -181,13 +181,54 @@ async def execute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     # Отправляем результат в формате `bash`
     await update.message.reply_text(f"```bash\n{result}\n```", parse_mode='MarkdownV2')
 
+async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    container_name = f"user_container_{user_id}"
+
+    # Проверяем, существует ли контейнер
+    container_exists = subprocess.call(
+        ["docker", "inspect", container_name],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    ) == 0
+
+    if not container_exists:
+        await update.message.reply_text("Контейнер не существует. Введите /start для его создания.")
+        return
+
+    # Проверяем, отправлен ли файл
+    if not update.message.document:
+        await update.message.reply_text("Отправьте файл для загрузки в контейнер.")
+        return
+
+    file = await update.message.document.get_file()
+    file_path = f"/tmp/{update.message.document.file_name}"
+
+    await file.download_to_drive(file_path)
+
+    try:
+        # Копируем файл в контейнер
+        subprocess.check_call(
+            ["docker", "cp", file_path, f"{container_name}:/tmp/{update.message.document.file_name}"]
+        )
+        await update.message.reply_text(
+            f"Файл загружен в:\n```bash\n/tmp/{update.message.document.file_name}\n```",
+            parse_mode='MarkdownV2'
+        )
+    except subprocess.CalledProcessError:
+        await update.message.reply_text("Не удалось загрузить файл в контейнер.")
+    finally:
+        # Удаляем временный файл
+        os.remove(file_path)
+
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = (
         "Доступные команды:\n"
         "/start - Создать контейнер.\n"
         "/destroy - Удалить контейнер.\n"
         "/restart - Перезапустить контейнер.\n"
-        "/download <путь к файлу> - Скачать файл из контейнера."
+        "/download <путь к файлу> - Скачать файл из контейнера.\n"
+        "<файл> - Загрузить файл в контейнер."
     )
     await update.message.reply_text(text)
 
@@ -211,6 +252,7 @@ def main() -> None:
     application.add_handler(CommandHandler("destroy", destroy))
     application.add_handler(CommandHandler("restart", restart))
     application.add_handler(CommandHandler("download", download))
+    application.add_handler(MessageHandler(filters.Document.ALL, upload))
     application.add_handler(CommandHandler("help", help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, execute))
 
