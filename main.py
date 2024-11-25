@@ -201,12 +201,14 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Отправьте файл для загрузки в контейнер.")
         return
 
-    file = await update.message.document.get_file()
-    file_path = f"/tmp/{update.message.document.file_name}"
-
-    await file.download_to_drive(file_path)
+    file_path = None  # Инициализируем переменную file_path
 
     try:
+        file = await update.message.document.get_file()
+        file_path = f"/tmp/{update.message.document.file_name}"
+
+        await file.download_to_drive(file_path)
+
         # Копируем файл в контейнер
         subprocess.check_call(
             ["docker", "cp", file_path, f"{container_name}:/tmp/{update.message.document.file_name}"]
@@ -215,11 +217,12 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"Файл загружен в:\n```bash\n/tmp/{update.message.document.file_name}\n```",
             parse_mode='MarkdownV2'
         )
-    except subprocess.CalledProcessError:
-        await update.message.reply_text("Не удалось загрузить файл в контейнер.")
+    # Проверка на telegram.error.BadRequest: File is too big
+    except:
+        await update.message.reply_text("Ошибка загрузки файла. Попробуйте файл меньшего размера!")
     finally:
-        # Удаляем временный файл
-        os.remove(file_path)
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
 
 async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = (
@@ -228,7 +231,7 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/destroy - Удалить контейнер.\n"
         "/restart - Перезапустить контейнер.\n"
         "/download <путь к файлу> - Скачать файл из контейнера.\n"
-        "<файл> - Загрузить файл в контейнер."
+        "<файл> - Загрузить файл в контейнер. ( до 20 мб )"
     )
     await update.message.reply_text(text)
 
